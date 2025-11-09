@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
-using UnityEngine.InputSystem;
 
 public sealed class GameManager : MonoBehaviour {
     public static GameManager Instance;
@@ -14,8 +13,6 @@ public sealed class GameManager : MonoBehaviour {
     public static bool godMode = false;
     public static int score = 0;
     public static int highScore = 0;
-    public static int lives = 3;
-    public static int level = 1;
     public static float masterVolume = 1f;
     public static float mouseSensitivity = 2f;
     public static string currentWeapon = "Pistol";
@@ -28,7 +25,7 @@ public sealed class GameManager : MonoBehaviour {
 
     public CameraControl cameraControl;
     public Player player;
-    public GameObject enemyPrefab;
+    public Enemy enemyPrefab;
     public GameObject bulletPrefab;
     public GameObject explosionPrefab;
     public AudioClip jumpSound;
@@ -44,11 +41,16 @@ public sealed class GameManager : MonoBehaviour {
     public GameObject pausePanel;
     public GameObject gameOverPanel;
     public GameObject victoryPanel;
-    private float nextSpawn = 0;
-    public Transform[] spawnPoints; // assigned in Inspector
+    public Transform[] spawnPoints;
+    public List<Enemy> enemies; //DO NOT ASSIGN THIS IN INSPECTOR, USED FOR TRACKING ENEMIES
 
-    public float GetPlayerHealth => player.healthBar.fillAmount;
-    public float SetPlayerHealth => player.healthBar.fillAmount;
+    private static int lives = 3;
+    private static int level = 1;
+    private float nextSpawn = 0;
+    public static float PlayerHealth {
+        get => GameData.PLAYER_HEALTH;
+        set => GameData.PLAYER_HEALTH = (int)value;
+    }
 
     private void Awake() {
         if(Instance != null && Instance != this) {
@@ -58,6 +60,8 @@ public sealed class GameManager : MonoBehaviour {
         Instance = this;
         DontDestroyOnLoad(gameObject);
         highScore = PlayerPrefs.GetInt("HighScore", 0);
+        lives = GameData.PLAYER_LIVES;
+        level = GameData.CURRENT_LEVEL;
     }
 
     private void Start() {
@@ -96,10 +100,14 @@ public sealed class GameManager : MonoBehaviour {
             //Debug.Log("FPS: " + (1f / Time.deltaTime).ToString("F1"));
         }
 
-        if(!gameIsOver && !gameIsPaused && Time.time > nextSpawn) {
+        if(!gameIsOver && !gameIsPaused && Time.time > nextSpawn && enemies.Count < GameData.NUM_MAX_ENEMIES) {
             nextSpawn = Time.time + Random.Range(1f, 3f);
             int r = Random.Range(0, spawnPoints.Length);
-            Instantiate(enemyPrefab, spawnPoints[r].position, Quaternion.identity);
+            var enemy = Instantiate(enemyPrefab, spawnPoints[r].position, Quaternion.identity);
+            enemies.Add(enemy);
+            enemy.transform.position = new Vector3(enemy.transform.position.x + Random.Range(1f , 3f), enemy.transform.position.y, enemy.transform.position.z + Random.Range(1f, 3f));
+            enemy.transform.LookAt(player.transform);
+            StartMovingTowardsPlayer(enemy);
         }
 
         if(!gameIsPaused && !playerIsDead) {
@@ -110,6 +118,9 @@ public sealed class GameManager : MonoBehaviour {
         if(score >= 5000 && !gameIsOver) {
             Victory();
         }
+    }
+    private void StartMovingTowardsPlayer(Enemy enemy) {
+        enemy.StartMovingTowards(player.transform);
     }
 
     private void RefreshUI() {
@@ -123,7 +134,7 @@ public sealed class GameManager : MonoBehaviour {
     public void Pause() {
         gameIsPaused = true;
         Time.timeScale = 0f;
-        pausePanel.SetActive(true);
+        pausePanel?.SetActive(true);
         musicSource.Pause();
         Cursor.lockState = CursorLockMode.None;
     }
@@ -152,7 +163,11 @@ public sealed class GameManager : MonoBehaviour {
             musicSource.PlayOneShot(shootSound);
         }
         // spawn bullet
-        Instantiate(bulletPrefab, cameraControl.CurrentCamera.transform.position + cameraControl.CurrentCamera.transform.forward, cameraControl.CurrentCamera.transform.rotation);
+        Instantiate(bulletPrefab, player.transform.position + player.transform.forward, player.transform.rotation);
+        MoveBullet();
+    }
+    private void MoveBullet() {
+        throw new System.NotImplementedException();
     }
 
     public void DamagePlayer(int dmg) {
@@ -160,7 +175,7 @@ public sealed class GameManager : MonoBehaviour {
             return;
         }
         player.healthBar.fillAmount -= GetDamagePercent(dmg);
-        if(player.healthBar.fillAmount <= 0) {
+        if(GameData.PLAYER_HEALTH <= 0) {
             KillPlayer();
         }
     }
@@ -170,7 +185,7 @@ public sealed class GameManager : MonoBehaviour {
             return;
         }
         player.healthBar.fillAmount -= GetDamagePercent(dmg);
-        if(player.healthBar.fillAmount <= 0) {
+        if(GameData.PLAYER_HEALTH <= 0) {
             KillPlayer();
         }
     }
@@ -199,6 +214,7 @@ public sealed class GameManager : MonoBehaviour {
 
     private void RespawnPlayer() {
         player.healthBar.fillAmount = 1f;
+        GameData.PLAYER_HEALTH = 100;
         playerIsDead = false;
         RefreshUI();
     }
