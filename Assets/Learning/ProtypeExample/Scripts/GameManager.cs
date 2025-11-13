@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
+using Random = UnityEngine.Random;
 
 namespace Learning.Prototype {
     internal enum Weapons {
